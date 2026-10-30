@@ -124,7 +124,43 @@ func (ic *ItemController[T, S]) Get(ctx context.Context, uuid string) (*T, error
 	if z, ok := any(&item).(interface{ IsZero() bool }); ok && z.IsZero() {
 		return nil, ErrNotFound
 	}
+	if k, ok := any(&item).(kinded); ok {
+		if err := checkKind(uuid, body, k); err != nil {
+			return nil, err
+		}
+	}
 	return &item, nil
+}
+
+// kinded is an item that shares its model array with items of another kind, such as
+// Unbound's query forwarding and DNS over TLS servers. The get action of such a controller
+// returns an item of any kind, so Get checks the type field that tells them apart.
+type kinded interface {
+	kind() string
+}
+
+// WrongKindError is Get finding an item of another kind in a shared array.
+type WrongKindError struct {
+	UUID, Got, Want string
+}
+
+func (e *WrongKindError) Error() string {
+	return fmt.Sprintf("opnsense: item %s has type %q, not %q; it belongs to the resource or tool for %q items",
+		e.UUID, e.Got, e.Want, e.Got)
+}
+
+func checkKind(uuid string, body json.RawMessage, k kinded) error {
+	// The item's own Type is a ReadOnly, which can't hold the option map OPNsense returns.
+	var got struct {
+		Type Option `json:"type"`
+	}
+	if err := json.Unmarshal(body, &got); err != nil {
+		return fmt.Errorf("opnsense: decode type: %w", err)
+	}
+	if want := k.kind(); string(got.Type) != want {
+		return &WrongKindError{UUID: uuid, Got: string(got.Type), Want: want}
+	}
+	return nil
 }
 
 // Template returns a blank item with its default values and option lists, as the add dialog
