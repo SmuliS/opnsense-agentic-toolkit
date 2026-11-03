@@ -47,7 +47,7 @@ func genNetworkInterfacePlan() genNetworkInterfaceModel {
 		Dhcp6vlanprio:                 types.StringValue(""),
 		Dhcp6IaPdLen:                  types.StringValue("none"),
 		Dhcp6prefixonly:               types.BoolValue(false),
-		Dhcp6RequestDNS:               types.BoolValue(false),
+		Dhcp6RequestDNS:               types.BoolValue(true),
 		Dhcp6InformationOnly:          types.BoolValue(false),
 		Dhcp6IaPdSendHint:             types.BoolValue(false),
 		Dhcp6RapidCommit:              types.BoolValue(false),
@@ -322,8 +322,8 @@ func TestGenNetworkInterface(t *testing.T) {
 	if !sameValues(rec["dhcp6prefixonly"], "0") {
 		t.Errorf("dhcp6prefixonly: stored %q, want %q", rec["dhcp6prefixonly"], "0")
 	}
-	if !sameValues(rec["dhcp6_request_dns"], "0") {
-		t.Errorf("dhcp6_request_dns: stored %q, want %q", rec["dhcp6_request_dns"], "0")
+	if !sameValues(rec["dhcp6_request_dns"], "1") {
+		t.Errorf("dhcp6_request_dns: stored %q, want %q", rec["dhcp6_request_dns"], "1")
 	}
 	if !sameValues(rec["dhcp6-information-only"], "0") {
 		t.Errorf("dhcp6-information-only: stored %q, want %q", rec["dhcp6-information-only"], "0")
