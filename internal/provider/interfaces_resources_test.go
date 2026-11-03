@@ -1,8 +1,11 @@
 package provider
 
 import (
+	"fmt"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/defaults"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -80,5 +83,42 @@ func TestInterfaceEmptyMaskedFields(t *testing.T) {
 	}
 	if d := h.validateStrings(config); d.HasError() {
 		t.Errorf("config generated on import rejected: %v", d)
+	}
+}
+
+// dhcp6_request_dns defaults to what OPNsense reads back. OPNsense saves the flag only for
+// `ipv6_type = "dhcp6"`, and reads true for every other type, so a default of false made
+// every new static interface fail with "inconsistent result after apply".
+func TestInterfaceDhcp6RequestDNSDefault(t *testing.T) {
+	h := newHarness(t, nil, NewNetworkInterfaceResource())
+	attr := h.schema.Schema.Attributes["dhcp6_request_dns"].(schema.BoolAttribute)
+	var dresp defaults.BoolResponse
+	attr.Default.DefaultBool(h.ctx, defaults.BoolRequest{}, &dresp)
+	def := dresp.PlanValue
+
+	for i, tc := range []struct {
+		type6 string
+		set   types.Bool
+		want  bool
+	}{
+		{"", def, true},      // unset on a static interface: the default matches
+		{"slaac", def, true}, // likewise for any IPv6 type but dhcp6
+		{"dhcp6", def, true}, // unset on a DHCPv6 client: asks for DNS servers
+		{"dhcp6", types.BoolValue(false), false},
+	} {
+		plan := genNetworkInterfacePlan()
+		plan.Device = types.StringValue(fmt.Sprintf("vtnet%d", 10+i))
+		plan.Description = types.StringValue(fmt.Sprintf("IF%d", i))
+		plan.IPv6Type, plan.Dhcp6RequestDNS = types.StringValue(tc.type6), tc.set
+		var got genNetworkInterfaceModel
+		if _, ok := h.create(plan, &got); !ok {
+			t.Fatalf("type6 %q: create failed", tc.type6)
+		}
+		if got.Dhcp6RequestDNS.ValueBool() != tc.want {
+			t.Errorf("type6 %q, set %v: read back %v, want %v", tc.type6, tc.set, got.Dhcp6RequestDNS, tc.want)
+		}
+		if got.Dhcp6RequestDNS != tc.set {
+			t.Errorf("type6 %q: planned %v but read back %v, an inconsistent result", tc.type6, tc.set, got.Dhcp6RequestDNS)
+		}
 	}
 }

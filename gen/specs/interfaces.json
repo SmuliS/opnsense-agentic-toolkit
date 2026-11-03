@@ -106,6 +106,10 @@
         "dhcp_request_options": {
           "type": "string"
         },
+        "dhcp6_request_dns": {
+          "default": "1",
+          "description": "Ask the DHCPv6 server for DNS servers. Only applies with `ipv6_type = \"dhcp6\"`: OPNsense saves the flag only then, and reads it back as true for any other IPv6 type."
+        },
         "dhcp6_send_options": {
           "type": "string"
         },
