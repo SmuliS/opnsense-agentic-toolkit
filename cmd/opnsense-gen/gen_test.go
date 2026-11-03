@@ -77,6 +77,25 @@ func TestMaskValidator(t *testing.T) {
 	}
 }
 
+// OPNsense checks a network field only when it isn't empty, so only a required field rejects "".
+func TestNetworkValidator(t *testing.T) {
+	for _, tc := range []struct {
+		validator string
+		required  bool
+		want      string
+	}{
+		{"cidr{}", false, "emptyOr{cidr{}}"},
+		{"ipOrCIDR{}", false, "emptyOr{ipOrCIDR{}}"},
+		{"cidr{}", true, "cidr{}"},
+	} {
+		f := &Field{XML: "ipaddr", Attr: "ipv4_address", Kind: kString, Validators: []string{tc.validator},
+			APIRequired: tc.required, InTF: true}
+		if got := schemaAttr(newW(), f); !strings.Contains(got, "Validators: []validator.String{"+tc.want+"}") {
+			t.Errorf("%s required=%v: %s, want %s", tc.validator, tc.required, got, tc.want)
+		}
+	}
+}
+
 const testModel = `<model><items>
   <thing type="ArrayField">
     <name type="TextField"><Required>Y</Required>

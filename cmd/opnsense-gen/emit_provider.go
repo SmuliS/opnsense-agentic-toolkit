@@ -189,7 +189,14 @@ func schemaAttr(b *w, f *Field) string {
 				f.Mask, "must match the OPNsense model mask"))
 		}
 	}
-	validators = append(validators, f.Validators...)
+	for _, v := range f.Validators {
+		if (v == "cidr{}" || v == "ipOrCIDR{}") && f.Kind == kString && !f.APIRequired {
+			// OPNsense checks a network field only when it isn't empty, so "" clears it.
+			// Generated import config writes it out explicitly.
+			v = "emptyOr{" + v + "}"
+		}
+		validators = append(validators, v)
+	}
 	planmods = append(planmods, f.PlanMods...)
 	for _, e := range append(append([]string{}, validators...), planmods...) {
 		useExpr(b, e)
