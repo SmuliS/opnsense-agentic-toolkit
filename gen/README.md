@@ -77,7 +77,7 @@ Field:
 | `invert` | boolean exposed negated (`disabled` → `enabled`) |
 | `as_bool` | two-value option as a boolean: `{"true": "0", "false": "1"}` |
 | `values` | option values renamed: `{"https": "1"}` |
-| `validators`, `plan_modifiers` | Go expressions appended to the attribute |
+| `validators`, `plan_modifiers` | Go expressions appended to the attribute; `cidr{}` only on a field with `NetMaskRequired`, else `ipOrCIDR{}` |
 | `computed`, `include`, `tf: false` | OPNsense-maintained (never sent); generate a volatile field; leave a computed field out of Terraform |
 | `tf_computed`, `tf_unstable` | computed only in Terraform (set by a hook, still sent); changes on its own (no UseStateForUnknown) |
 | `write_only` | OPNsense does not return the value faithfully (volatile creation parameters, PEM payloads): reads keep what Terraform has and only fill an unknown value; sensitive write-only attributes are optional only, so a generated private key never reaches the state |
@@ -115,8 +115,9 @@ becomes a required attribute; everything else is optional with the XML default. 
 that is not one of the field's options is ignored (the Syslog transport ships one).
 
 Masks are translated from PCRE to Go when RE2 can express them; others are only enforced by
-OPNsense. Like OPNsense, the validator accepts "" unless the field is required, so `= ""` clears
-a field. `UniqueConstraint`s are enforced by the fake.
+OPNsense. Like OPNsense, the mask check, and a `cidr{}` or `ipOrCIDR{}` check on a single-value
+field, accept "" unless the field is required, so `= ""` clears a field. `UniqueConstraint`s are
+enforced by the fake.
 
 ## What stays hand-written
 

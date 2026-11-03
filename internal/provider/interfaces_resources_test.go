@@ -28,9 +28,9 @@ func TestInterfaceAssignment(t *testing.T) {
 	}
 }
 
-// An optional masked field accepts an explicit "", because OPNsense skips the mask for an empty
-// value. `tofu plan -generate-config-out` writes "" for every empty field of an imported
-// interface, and `= ""` clears a field.
+// An optional masked or network field accepts an explicit "", because OPNsense checks only a
+// non-empty value. `tofu plan -generate-config-out` writes "" for every empty field of an
+// imported interface, such as the IPv4 address of a DHCP WAN, and `= ""` clears a field.
 func TestInterfaceEmptyMaskedFields(t *testing.T) {
 	h := newHarness(t, nil, NewNetworkInterfaceResource())
 	plan := genNetworkInterfacePlan()
@@ -50,17 +50,26 @@ func TestInterfaceEmptyMaskedFields(t *testing.T) {
 	if !h.validateStrings(bad).HasError() {
 		t.Error("dhcp6_ifid without 0x accepted")
 	}
+	bad = plan
+	bad.IPv4Address = types.StringValue("10.30.0.1")
+	if !h.validateStrings(bad).HasError() {
+		t.Error("ipv4_address without a prefix accepted")
+	}
 
 	plan.ID, plan.Identifier = got.ID, got.Identifier
-	for _, s := range []*types.String{&plan.Dhcp6Ifid, &plan.Dhcp6PrefixID, &plan.Track6Ifid, &plan.Track6PrefixID} {
+	for _, s := range []*types.String{&plan.Dhcp6Ifid, &plan.Dhcp6PrefixID, &plan.Track6Ifid, &plan.Track6PrefixID,
+		&plan.IPv4Type, &plan.IPv4Address} {
 		*s = types.StringValue("")
 	}
 	if d := h.validateStrings(plan); d.HasError() {
 		t.Fatalf("explicit empty values rejected: %v", d)
 	}
 	h.update(st, plan, &got)
-	if rec, _ := h.fake.Get("interface", id); rec["dhcp6_ifid"] != "" {
-		t.Errorf("dhcp6_ifid not cleared: %q", rec["dhcp6_ifid"])
+	rec, _ := h.fake.Get("interface", id)
+	for _, f := range []string{"dhcp6_ifid", "ipaddr"} {
+		if rec[f] != "" {
+			t.Errorf("%s not cleared: %q", f, rec[f])
+		}
 	}
 
 	// Import: the generated config is the state read after import, with every value explicit.
@@ -75,8 +84,10 @@ func TestInterfaceEmptyMaskedFields(t *testing.T) {
 	if _, ok := h.read(imported, &config); !ok {
 		t.Fatal("read after import removed the resource")
 	}
-	if config.Dhcp6Ifid.IsNull() || config.Dhcp6Ifid.ValueString() != "" {
-		t.Fatalf("imported dhcp6_ifid = %v, want \"\"", config.Dhcp6Ifid)
+	for name, v := range map[string]types.String{"dhcp6_ifid": config.Dhcp6Ifid, "ipv4_address": config.IPv4Address} {
+		if v.IsNull() || v.ValueString() != "" {
+			t.Fatalf("imported %s = %v, want \"\"", name, v)
+		}
 	}
 	if d := h.validateStrings(config); d.HasError() {
 		t.Errorf("config generated on import rejected: %v", d)
